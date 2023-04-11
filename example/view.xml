@@ -1,0 +1,8 @@
+<data>
+<!-- Example to showcase dataer -->
+
+<!-- Main -->
+    <label string="Label"/>
+    <button string="modifiy label" onchange="EX_oc"/>
+    <label name="lbl_var"/>
+</data>
