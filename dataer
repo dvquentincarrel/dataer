@@ -7,8 +7,10 @@ import sys
 import os
 import json
 import pdb
+import re
 import psycopg2 as pcg
-import xml.etree.ElementTree as ET
+#import xml.etree.ElementTree as ET
+import lxml.etree as ET
 from io import open
 from unidecode import unidecode
 # Params: data_filename menu_name files
@@ -34,9 +36,18 @@ DEFAULT_DATA_EXT = "xtml"
 DEFAULT_TARGET_LOCATION = "location"
 DEFAULT_DBNAME_PATH = '/tmp/.cur_db'
 DB_NAME = "vanilla_dev" 
-USER = "db_user"
-PW = "db_pw"
-RAW = True
+USER = "openprod"
+PW = "openprod"
+RAW = bool()
+DEFAULT_RAWNESS = False
+SECURE = bool()
+DEFAULT_SEC = True
+
+VIEW_KEY = "view"
+OCS_KEY = "onchange"
+CSS_KEY = "style"
+SKEL_NAME = "skeleton.json"
+MENUS_KEY = "menus"
 
 if len(sys.argv) < 2:
     print("Not enough args\nDATA_FILENAME MENU_NAME MODULE_NAME FILES...")
@@ -53,7 +64,7 @@ def make_refs(names, module_name=""):
                 refs.append("ref('%s.%s')"%(module_name, name))
             else:
                 refs.append("ref('%s')"%(name))
-    return ','.join(refs)
+    return ',\n            '.join(refs)
 
 class Builder:
     """ Handles the building of the xml data file based on what's been parsed in the JSON """
@@ -65,7 +76,7 @@ class Builder:
         self.styles = []
         self.onchanges = []
         if('view' in data):
-            self.views = [view['name'] for view in data['view']]
+            self.views = [view.get('id') or view['name'] for view in data['view']]
         if("external_views" in data):
             self.views += data['external_views']
         if('style' in data):
@@ -76,6 +87,10 @@ class Builder:
             self.onchanges = [onchange['name'] for onchange in data['onchange']]
         if("external_oc" in data):
             self.onchanges += data['external_oc']
+        global RAW
+        RAW = data['raw'] if 'raw' in data else DEFAULT_RAWNESS
+        global SECURE
+        SECURE = data['secure'] if 'secure' in data else DEFAULT_SEC
 
     def _build_onchange(self, data):
         """ self-explanatory """
@@ -83,24 +98,28 @@ class Builder:
         if(data['file']):
             raw_type = "raw_"*RAW+"code"
             code = process_file(data['file'], 'py')
-            content = """\
-    <record id="%s" model="manual.onchange">
-        <field name="name">%s</field>
-        <field name="model_id" search="[('model', '=', '%s')]"/>
-        <field name="%s">
-%s\
-        </field>
-    </record>\n\
-"""%(data['name'], data['name'], data['model'], raw_type, code)
-            return content
+            code = code.strip()
+            content = [
+                f"""    <record id="{data['name']}" model="manual.onchange">""",
+                f"""        <field name="name">{data['name']}</field>""",
+                f"""        <field name="model_id" search="[('model', '=', '{data['model']}')]"/>""",
+                f"""        <field name="{raw_type}">""",
+                f"""{code}""",
+                f"""        </field>""",
+                f"""    </record>\n\n""",
+            ]
+            if(not SECURE):
+                content.insert(2, """        <field name="is_security_check" eval="False"/>""")
+            return '\n'.join(content)
         else:
-            return u''
+            return ''
 
     def _build_style(self, data):
         """ self-explanatory """
         # id, name, pages, code
         if(data['file']):
             code = process_file(data['file'], 'css')
+            code = code.strip()
             refs = make_refs(data['pages'])
             content = """\
     <record id="%s" model="ir.ui.css.ionic">
@@ -108,10 +127,10 @@ class Builder:
         <field name="page_ids" eval="[(6, 0, [%s])]"/>
         <field name="style">
             <![CDATA[
-%s\
+%s
             ]]>
         </field>
-    </record>\n\
+    </record>\n\n\
 """%(data['name'], data['name'], refs, code)
             return content
         else:
@@ -123,16 +142,17 @@ class Builder:
         if(data['file']):
             raw_type = "raw_"*RAW + "architecture"
             code = process_file(data['file'], 'xml')
+            code = code.strip()
             content = """\
     <record id="%s" model="ir.ui.view.ionic">
         <field name="identifier">%s</field>
         <field name="name">%s</field>
         <field name="model_id" search="[('model', '=', '%s')]"/>
         <field name="%s" type="xml">
-%s\
+%s
         </field>
-    </record>\n\
-"""%(data['name'], data['name'], data['name'], data['model'], raw_type, code)
+    </record>\n\n\
+"""%(data['id'], data['id'], data['name'], data['model'], raw_type, code)
             return content
         else:
             return u''
@@ -145,20 +165,22 @@ class Builder:
         styles = make_refs(self.styles)
         onchanges = make_refs(self.onchanges)
         #users = make_refs([data['users'],]) # TODO: improve
+        if not data.get('id'):
+            data['id'] = data['name']
         if(data['name']):
             content = """\
     <record id="%s" model="ir.ui.menu.ionic">
         <field name="name">%s</field>
         <field name="icon" type="char">%s</field>
-        <field name="view_id" ref="%s"/>
         <field name="sequence" eval="%s"/>
+        <field name="view_id" ref="%s"/>
         <field name="initial_onchange_id" ref="%s"/>
         <field name="view_ids" eval="[(6, 0, [%s])]" />
         <field name="css_ids" eval="[(6, 0, [%s])]"/>
         <field name="onchange_ids" eval="[(6, 0, [%s])]" />
     </record>\n\
-"""%(unidecode(data['name']), data['name'], data['icon'], data['main_view'],
-         data['seq'], data['init_oc'], views, styles, onchanges)
+"""%(unidecode(data['id']), data['name'], data['icon'], data['seq'],
+         data['main_view'], data['init_oc'], views, styles, onchanges)
             return content
         else:
             return u''
@@ -218,12 +240,13 @@ def process_file(filename, ext):
 def template(filename=DEFAULT_JSON_NAME):
     """ Makes the template json file to use as a base for building, later """
     if os.path.exists(filename):
-        ans = raw_input("file %s already exists. overwrite ? y/any\n"%(filename))
+        ans = input("file %s already exists. overwrite ? y/any\n"%(filename))
         if ans != "y":
             return 1
     file_ = open(filename, "w", encoding='utf-8')
     file_.write(u"""\
 {
+    "raw": true,
     "style":[
         {
             "file":"",
@@ -247,6 +270,7 @@ def template(filename=DEFAULT_JSON_NAME):
     "view":[
         {
             "file":"",
+            "id":"",
             "name":"",
             "model":"ir.ui.view.ionic"
         }
@@ -255,6 +279,7 @@ def template(filename=DEFAULT_JSON_NAME):
         ""
     ],
     "menu":{
+        "id":"",
         "name":"",
         "icon":"",
         "main_view":"",
@@ -262,7 +287,6 @@ def template(filename=DEFAULT_JSON_NAME):
         "seq":"0"
     }
 }""")
-        #"users":"base.user_root", # TODO: see what to do with it
     file_.close()
     build_makefile()
     file_ = open('.gitignore', 'a')
@@ -270,6 +294,7 @@ def template(filename=DEFAULT_JSON_NAME):
     file_.write(u"data*.xml\n")
     file_.write(u"*.xtml")
     file_.close()
+    build_loc_link()
     return 0
 
 def unescape(input: str) -> str:
@@ -288,23 +313,34 @@ def unravel(filename: str) -> None:
         tree: ET.ElementTree = ET.parse(filename)
         root: ET.Element = tree.getroot().findall('./data')[0]
         records: list[ET.Element] = root.findall('./record')
+        entries = {VIEW_KEY:[], OCS_KEY:[], CSS_KEY:[], MENUS_KEY:[]}
         for record in records:
             record_type = record.attrib.get('model')
+            record_id = record.attrib.get('id')
             record_name: str = ''
             code = False
             content_name: list
             file_ext: str
+            id = None
+            is_view = False
             # Retrieves code tag name based on record type
             if(record_type == 'manual.onchange'):
                 content_name = ["code", "raw_code"]
                 file_ext = ".py"
+                record_type = OCS_KEY
+                is_view = False
             elif(record_type == 'ir.ui.view.ionic'):
                 content_name = ["architecture", 'raw_architecture']
                 file_ext = ".xml"
+                record_type = VIEW_KEY
+                is_view = True
             elif(record_type == 'ir.ui.css.ionic'):
                 content_name = ["style"]
                 file_ext = ".css"
+                record_type = CSS_KEY
+                is_view = False
             else:
+                # Doesn't handle something other than views, onchanges, and css sheets
                 continue
 
             # Gets elem name, code after substitutions
@@ -312,22 +348,53 @@ def unravel(filename: str) -> None:
                 if field.attrib["name"] == "name":
                     record_name = field.text
                 elif field.attrib["name"] in content_name:
-                    if(record_type == 'ir.ui.view.ionic'):
-                        code = unescape(ET.tostring(field.find('data'), encoding='unicode'))
-                    else:
-                        code = unescape(field.text)
+                    code = ET.tostring(field[0], encoding="unicode", method="xml") if is_view else unescape(field.text)
+                    code = code.strip()
+                elif field.attrib['name'] == "model_id":
+                    model = get_model(field)
+                elif field.attrib['name'] == "identifier":
+                    id = field.text
 
             # Doesn't produce empty files
             if record_name and code:
-                print("creating file")
-                if not (os.path.exists(record_name)):
-                    file_ = open(record_name + file_ext,'w')
+                add_record(entries, record_type, record_name, file_ext, model, id)
+                if not (os.path.exists(record_id + file_ext)):
+                    file_ = open(record_id + file_ext,'w')
                     file_.write(code)
                     file_.close()
                 else:
-                    print(f"'{record_name}' already exists")
-            else:
-                print("either record or code missing")
+                    print(f"'{record_id + file_ext}' already exists")
+        get_skel(entries) 
+
+def add_record(container, elem_type, name, ext, model, id):
+    """Adds a record (view/oc/css) to the container"""
+    row = {'name':name, 'file':name+ext, 'model':model}
+    if(elem_type == VIEW_KEY):
+        row['file'] = id + ext
+        row['id'] = id
+    container[elem_type].append(row)
+
+def get_skel(container, skel_name = SKEL_NAME):
+    """ Updates skeleton body from record container"""
+    if(not os.path.exists(skel_name)):
+        print("Skeleton not found, couldn't update it")
+        return None
+    with open(skel_name, 'r') as file:
+        skeleton = json.load(file)
+    skeleton[VIEW_KEY] = container[VIEW_KEY]
+    skeleton[OCS_KEY] = container[OCS_KEY]
+    skeleton[CSS_KEY] = container[CSS_KEY]
+    #skeleton[MENUS_KEY] = container[MENUS_KEY]
+    with open(skel_name, 'w') as file:
+        json.dump(skeleton, file, indent=4, ensure_ascii=False)
+
+def get_model(elem: ET.Element) -> str:
+    """Extracts model name from element"""
+    search=elem.attrib['search']
+    raw_model = search.split(',')[2]
+    match = re.search(r"(?<=').*(?=')", raw_model)
+    model = match.group(0)
+    return model
 
 
 def build_makefile(filename=DEFAULT_DATA_NAME, ext=DEFAULT_DATA_EXT, target=DEFAULT_TARGET_LOCATION):
@@ -342,13 +409,15 @@ always:
     file_.close() 
 
 def build_loc_link() -> None:
-    os.symlink('location','~/git/openprod/openprod-addons/web_scanner/data/')
+    os.symlink(os.path.expanduser('~/git/openprod/openprod-addons/web_scanner/data/'), 'location')
     pass
 
 
 class Injecter:
     def __init__(self, json_data):
         self.data = json_data
+        global RAW
+        RAW = self.data['raw'] if 'raw' in self.data else DEFAULT_RAWNESS
         self.views = []
         self.styles = []
         self.onchanges = []
@@ -385,6 +454,12 @@ class Injecter:
                 is_translatable_code = {not RAW}
             WHERE name = '{entry_name}'
             """
+        elif(entry_type == "css"):
+            stmt = f"""
+            UPDATE ir_ui_css_ionic
+            SET style = '{code}'
+            WHERE name = '{entry_name}'
+            """
         else:
             raise Exception(f"urecognized type {entry_type}")
         feedback and print(code) # TODO: eventually remove
@@ -396,12 +471,16 @@ class Injecter:
     def inject_scenario(self, feedback=True):
         for view in self.data['view']:
             code = self.psql_sanitize(view['file'])
-            self.inject_entry(view['name'], 'view', code)
-            feedback and print(f'Injected {view["file"]} into {view["name"]}')
+            self.inject_entry(view['id'], 'view', code)
+            feedback and print(f'Injected {view["file"]} into {view["id"]}')
         for onchange in self.data['onchange']:
             code = self.psql_sanitize(onchange['file'])
             self.inject_entry(onchange['name'], 'onchange', code)
             feedback and print(f'Injected {onchange["file"]} into {onchange["name"]}')
+        for sheet in self.data['style']:
+            code = self.psql_sanitize(sheet['file'])
+            self.inject_entry(sheet['name'], 'css', code)
+            feedback and print(f'Injected {sheet["file"]} into {sheet["name"]}')
 
 mode = sys.argv[1]
 if (mode == "template"):
@@ -426,8 +505,6 @@ elif (mode == "unravel"):
         print("No name given.")
     print("WIP-ish ?")
     unravel(filename)
-    #print("Unravel not supported as of now")
-    #print("Supposed to take the content of a data xml file and split it into individual files")
 elif (mode == "update"):
     print("Update not supported as of now")
     print("Supposed to not completely rebuild the xml data file,\
@@ -451,3 +528,12 @@ elif (mode == "inject"):
     injecter_o.inject_scenario()
 else:
     print("command '%s' not recognized (autofill/build/template/unravel/update/inject)"%(mode))
+
+
+def unescape(input: str) -> str:
+    """ Takes string with xml escaped characters, returns unescaped version"""
+    unescaped = input.replace('&lt;', '<')
+    unescaped = unescaped.replace('&gt;', '>')
+    unescaped = unescaped.replace('&amp;', '&')
+    return unescaped
+
