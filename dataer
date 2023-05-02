@@ -47,7 +47,7 @@ VIEW_KEY = "view"
 OCS_KEY = "onchange"
 CSS_KEY = "style"
 SKEL_NAME = "skeleton.json"
-MENUS_KEY = "menus"
+MENU_KEY = "menu"
 
 if len(sys.argv) < 2:
     print("Not enough args\nDATA_FILENAME MENU_NAME MODULE_NAME FILES...")
@@ -313,7 +313,7 @@ def unravel(filename: str) -> None:
         tree: ET.ElementTree = ET.parse(filename)
         root: ET.Element = tree.getroot().findall('./data')[0]
         records: list[ET.Element] = root.findall('./record')
-        entries = {VIEW_KEY:[], OCS_KEY:[], CSS_KEY:[], MENUS_KEY:[]}
+        entries = {VIEW_KEY:[], OCS_KEY:[], CSS_KEY:[], MENU_KEY:[]}
         for record in records:
             record_model = record.attrib.get('model')
             record_id = record.attrib.get('id')
@@ -339,6 +339,8 @@ def unravel(filename: str) -> None:
                 file_ext = ".css"
                 record_type = CSS_KEY
                 is_view = False
+            elif(record_model == 'ir.ui.menu.ionic'):
+                record_type = MENU_KEY
             else:
                 # Doesn't handle something other than views, onchanges, and css sheets
                 continue
@@ -354,6 +356,15 @@ def unravel(filename: str) -> None:
                     model = get_model(field)
                 elif field.attrib['name'] == "identifier":
                     id = field.text
+                # Menu only
+                elif field.attrib['name'] == 'icon':
+                    icon = field.text
+                elif field.attrib['name'] == 'initial_onchange_id':
+                    init_oc = field.attrib['ref']
+                elif field.attrib['name'] == 'view_id':
+                    main_view = field.attrib['ref']
+                elif field.attrib['name'] == 'sequence':
+                    seq = field.attrib['eval']
 
             # Doesn't produce empty files
             if record_name and code:
@@ -365,6 +376,15 @@ def unravel(filename: str) -> None:
                     file_.close()
                 else:
                     print(f"'{record_id + file_ext}' already exists")
+            elif record_type == MENU_KEY:
+                init_oc = init_oc if 'init_oc' in locals() else ''
+                row = { 
+                       'id' : record_id, 'name' : record_name, 'icon': icon,
+                       'init_oc': init_oc, 'main_view': main_view,
+                        'seq': seq
+                }
+                entries[MENU_KEY].append(row)
+
         get_skel(entries) 
 
 def add_record(container, elem_type, name, ext, model, id):
@@ -385,7 +405,7 @@ def get_skel(container, skel_name = SKEL_NAME):
     skeleton[VIEW_KEY] = container[VIEW_KEY]
     skeleton[OCS_KEY] = container[OCS_KEY]
     skeleton[CSS_KEY] = container[CSS_KEY]
-    #skeleton[MENUS_KEY] = container[MENUS_KEY]
+    skeleton[MENU_KEY] = container[MENU_KEY]
     with open(skel_name, 'w') as file:
         json.dump(skeleton, file, indent=4, ensure_ascii=False)
 
