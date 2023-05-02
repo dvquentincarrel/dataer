@@ -315,7 +315,7 @@ def unravel(filename: str) -> None:
         records: list[ET.Element] = root.findall('./record')
         entries = {VIEW_KEY:[], OCS_KEY:[], CSS_KEY:[], MENUS_KEY:[]}
         for record in records:
-            record_type = record.attrib.get('model')
+            record_model = record.attrib.get('model')
             record_id = record.attrib.get('id')
             record_name: str = ''
             code = False
@@ -324,17 +324,17 @@ def unravel(filename: str) -> None:
             id = None
             is_view = False
             # Retrieves code tag name based on record type
-            if(record_type == 'manual.onchange'):
+            if(record_model == 'manual.onchange'):
                 content_name = ["code", "raw_code"]
                 file_ext = ".py"
                 record_type = OCS_KEY
                 is_view = False
-            elif(record_type == 'ir.ui.view.ionic'):
+            elif(record_model == 'ir.ui.view.ionic'):
                 content_name = ["architecture", 'raw_architecture']
                 file_ext = ".xml"
                 record_type = VIEW_KEY
                 is_view = True
-            elif(record_type == 'ir.ui.css.ionic'):
+            elif(record_model == 'ir.ui.css.ionic'):
                 content_name = ["style"]
                 file_ext = ".css"
                 record_type = CSS_KEY
@@ -357,6 +357,7 @@ def unravel(filename: str) -> None:
 
             # Doesn't produce empty files
             if record_name and code:
+                model = model if 'model' in locals() else record_model
                 add_record(entries, record_type, record_name, file_ext, model, id)
                 if not (os.path.exists(record_id + file_ext)):
                     file_ = open(record_id + file_ext,'w')

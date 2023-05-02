@@ -1,4 +1,4 @@
-1. [ ] Handle cases where XML doens't contain `model_id` field
+1. [x] Handle cases where XML doens't contain `model_id` field (only happened if first entries didn't contain it)
 2. [ ] Really implement update
 3. [ ] Don't screw up styles on unravel
 4. [ ] Use config file / env vars instead of consts for config
