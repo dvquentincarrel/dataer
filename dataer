@@ -40,6 +40,8 @@ for key, val in config['DATAER'].items():
     locals()[key.upper()] = val
 RAW = bool()
 SECURE = bool()
+DEFAULT_RAWNESS = False
+DEFAULT_SEC = True
 
 VIEW_KEY = "view"
 OCS_KEY = "onchange"
