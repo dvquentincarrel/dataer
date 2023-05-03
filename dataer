@@ -30,12 +30,13 @@ from unidecode import unidecode
 # TODO: automatically call linters
 # TODO: support of both identifier and name for views
 
+
 DEFAULT_JSON_NAME = "skeleton.json"
 DEFAULT_DATA_NAME = "data"
 DEFAULT_DATA_EXT = "xtml"
 DEFAULT_TARGET_LOCATION = "location"
 DEFAULT_DBNAME_PATH = '/tmp/.cur_db'
-DB_NAME = "vanilla_dev" 
+DB_NAME = os.environ.get('DATAER_DB') or "vanilla_dev" # Might all end up in a config file
 USER = "openprod"
 PW = "openprod"
 RAW = bool()
