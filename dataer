@@ -239,6 +239,13 @@ def process_file(filename, ext):
 
 def template(filename=DEFAULT_JSON_NAME):
     """ Makes the template json file to use as a base for building, later """
+    build_makefile()
+    build_loc_link()
+    file_ = open('.gitignore', 'a')
+    file_.write(u".gitignore\n")
+    file_.write(u"data*.xml\n")
+    file_.write(u"*.xtml")
+    file_.close()
     if os.path.exists(filename):
         ans = input("file %s already exists. overwrite ? y/any\n"%(filename))
         if ans != "y":
@@ -288,13 +295,6 @@ def template(filename=DEFAULT_JSON_NAME):
     }
 }""")
     file_.close()
-    build_makefile()
-    file_ = open('.gitignore', 'a')
-    file_.write(u".gitignore\n")
-    file_.write(u"data*.xml\n")
-    file_.write(u"*.xtml")
-    file_.close()
-    build_loc_link()
     return 0
 
 def unescape(input: str) -> str:
@@ -419,6 +419,10 @@ def get_model(elem: ET.Element) -> str:
 
 
 def build_makefile(filename=DEFAULT_DATA_NAME, ext=DEFAULT_DATA_EXT, target=DEFAULT_TARGET_LOCATION):
+    if os.path.exists(filename):
+        ans = input("file %s already exists. overwrite ? y/any\n"%(filename))
+        if ans != "y":
+            return 1
     file_ = open("Makefile", 'w', encoding='utf-8')
     file_.write(u"""\
 filename = %s
