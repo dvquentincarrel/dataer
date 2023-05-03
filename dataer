@@ -13,6 +13,7 @@ import psycopg2 as pcg
 import lxml.etree as ET
 from io import open
 from unidecode import unidecode
+from configparser import ConfigParser
 # Params: data_filename menu_name files
 # Commands:
 # - template: builds empty, scaffold json file
@@ -30,19 +31,15 @@ from unidecode import unidecode
 # TODO: automatically call linters
 # TODO: support of both identifier and name for views
 
-
-DEFAULT_JSON_NAME = "skeleton.json"
-DEFAULT_DATA_NAME = "data"
-DEFAULT_DATA_EXT = "xtml"
-DEFAULT_TARGET_LOCATION = "location"
-DEFAULT_DBNAME_PATH = '/tmp/.cur_db'
-DB_NAME = os.environ.get('DATAER_DB') or "vanilla_dev" # Might all end up in a config file
-USER = "openprod"
-PW = "openprod"
+# Parse config file
+config = ConfigParser()
+if(not config.read(os.environ ['HOME']+'/.dataer.ini')):
+    print("Could not find config file (should be ~/.dataer.ini)")
+    exit(1)
+for key, val in config['DATAER'].items():
+    locals()[key.upper()] = val
 RAW = bool()
-DEFAULT_RAWNESS = False
 SECURE = bool()
-DEFAULT_SEC = True
 
 VIEW_KEY = "view"
 OCS_KEY = "onchange"
