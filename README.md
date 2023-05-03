@@ -13,8 +13,11 @@ could flag as invalid and that'd have been caught in the module update step.
 As such, make sure to always try to update your module with the final code before
 pushing it to prod.
 
+## Installation
+Running `./setup.sh` should be enough
+
 ## Requirements
-Python3, unidecode, psycopg2
+Found in the requirements.txt file.
 
 ## New scenario
 run `dataer template`, creates structure necessary for work.
