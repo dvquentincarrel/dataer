@@ -346,7 +346,7 @@ def unravel(filename: str) -> None:
                 continue
 
             # Gets elem name, code after substitutions
-            for field in record:
+            for field in [field for field in record if type(field) != ET._Comment]:
                 if field.attrib["name"] == "name":
                     record_name = field.text
                 elif field.attrib["name"] in content_name:
