@@ -439,8 +439,8 @@ always:
     file_.close() 
 
 def build_loc_link() -> None:
-    os.symlink(os.path.expanduser('~/git/openprod/openprod-addons/web_scanner/data/'), 'location')
-    pass
+    if(not os.path.exists('location')):
+        os.symlink(os.path.expanduser('~/git/openprod/openprod-addons/web_scanner/data/'), 'location')
 
 
 class Injecter:
