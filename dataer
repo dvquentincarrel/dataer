@@ -100,7 +100,7 @@ class Builder:
             code = process_file(data['file'], 'py')
             code = code.strip()
             content = [
-                f"""    <record id="{data['name']}" model="manual.onchange">""",
+                f"""    <record id="{data['id']}" model="manual.onchange">""",
                 f"""        <field name="name">{data['name']}</field>""",
                 f"""        <field name="model_id" search="[('model', '=', '{data['model']}')]"/>""",
                 f"""        <field name="{raw_type}">""",
@@ -369,7 +369,7 @@ def unravel(filename: str) -> None:
             # Doesn't produce empty files
             if record_name and code:
                 model = model if 'model' in locals() else record_model
-                add_record(entries, record_type, record_name, file_ext, model, id)
+                add_record(entries, record_type, record_name, file_ext, model, record_id)
                 if not (os.path.exists(record_id + file_ext)):
                     file_ = open(record_id + file_ext,'w')
                     file_.write(code)
@@ -389,10 +389,15 @@ def unravel(filename: str) -> None:
 
 def add_record(container, elem_type, name, ext, model, id):
     """Adds a record (view/oc/css) to the container"""
-    row = {'name':name, 'file':name+ext, 'model':model}
+    row = {'name':name, 'file':id+ext, 
+           'model':model, 'id': id }
     if(elem_type == VIEW_KEY):
         row['file'] = id + ext
-        row['id'] = id
+    elif(elem_type == CSS_KEY):
+        row.pop('model')
+        row.pop('id')
+        # TODO: extract pages as well
+        row['pages'] =  []
     container[elem_type].append(row)
 
 def get_skel(container, skel_name = SKEL_NAME):
