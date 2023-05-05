@@ -97,6 +97,7 @@ class Builder:
         # id, name, model_name, code
         if(data['file']):
             raw_type = "raw_"*RAW+"code"
+            data['id'] = data['id'] if 'id' in data else data['name']
             code = process_file(data['file'], 'py')
             code = code.strip()
             content = [
