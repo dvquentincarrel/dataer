@@ -243,9 +243,10 @@ def template(filename=DEFAULT_JSON_NAME):
     build_makefile()
     build_loc_link()
     file_ = open('.gitignore', 'a')
-    file_.write(u".gitignore\n")
-    file_.write(u"data*.xml\n")
-    file_.write(u"*.xtml")
+    file_.write(".gitignore\n")
+    file_.write("data*.xml\n")
+    file_.write("*.xtml")
+    file_.write("tags")
     file_.close()
     if os.path.exists(filename):
         ans = input("file %s already exists. overwrite ? y/any\n"%(filename))
@@ -425,8 +426,8 @@ def get_model(elem: ET.Element) -> str:
 
 
 def build_makefile(filename=DEFAULT_DATA_NAME, ext=DEFAULT_DATA_EXT, target=DEFAULT_TARGET_LOCATION):
-    if os.path.exists(filename):
-        ans = input("file %s already exists. overwrite ? y/any\n"%(filename))
+    if os.path.exists('Makefile'):
+        ans = input("Makefile already exists. overwrite ? y/any\n")
         if ans != "y":
             return 1
     file_ = open("Makefile", 'w', encoding='utf-8')
