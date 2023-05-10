@@ -49,8 +49,8 @@ help="""\
 \t\x1b[33mdataer update\x1b[m \x1b[1;4mTARGET\x1b[0;35m*\x1b[m
 \x1b[35m*NIY\x1b[m"""
 
-COMMANDS=set(['unravel', 'build', 'inject', 'autofill', 'update'])
-IMPLEMENTED=set(['unravel', 'build', 'inject'])
+COMMANDS=set(['unravel', 'build', 'inject', 'autofill', 'update', 'template'])
+IMPLEMENTED=set(['unravel', 'build', 'inject', 'template'])
 UNIMPLEMENTED=COMMANDS-IMPLEMENTED
 
 # If arg[1] is -h : display help
@@ -452,7 +452,8 @@ def get_skel(container, skel_name = SKEL_NAME):
         skeleton = json.load(file)
     skeleton[VIEW_KEY] = container[VIEW_KEY]
     skeleton[OCS_KEY] = container[OCS_KEY]
-    skeleton[CSS_KEY] = container[CSS_KEY]
+    if container[CSS_KEY]:
+        skeleton[CSS_KEY] = container[CSS_KEY]
     skeleton[MENU_KEY] = container[MENU_KEY][0]
     with open(skel_name, 'w') as file:
         json.dump(skeleton, file, indent=4, ensure_ascii=False)
