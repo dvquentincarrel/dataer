@@ -185,6 +185,7 @@ class Builder:
             raw_type = "raw_"*RAW + "architecture"
             code = process_file(data['file'], 'xml')
             code = code.strip()
+            data['id'] = data['id'] if 'id' in data else data['name']
             content = """\
     <record id="%s" model="ir.ui.view.ionic">
         <field name="identifier">%s</field>
@@ -545,6 +546,7 @@ class Injecter:
     def inject_scenario(self, feedback=True):
         for view in self.data['view']:
             code = self.psql_sanitize(view['file'])
+            view['id'] = view['id'] if 'id' in view else view['name']
             self.inject_entry(view['id'], 'view', code)
             feedback and print(f'Injected {view["file"]} into {view["id"]}')
         for onchange in self.data['onchange']:
