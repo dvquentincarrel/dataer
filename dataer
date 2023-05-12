@@ -164,18 +164,18 @@ class Builder:
             code = process_file(data['file'], 'css')
             code = code.strip()
             refs = make_refs(data['pages'])
-            content = """\
-    <record id="%s" model="ir.ui.css.ionic">
-        <field name="name">%s</field>
-        <field name="page_ids" eval="[(6, 0, [%s])]"/>
-        <field name="style">
-            <![CDATA[
-%s
-            ]]>
-        </field>
-    </record>\n\n\
-"""%(data['name'], data['name'], refs, code)
-            return content
+            content = [
+                f"""    <record id="{data['name']}" model="ir.ui.css.ionic">""",
+                f"""        <field name="name">{data['name']}</field>""",
+                f"""        <field name="page_ids" eval="[(6, 0, [{refs}])]"/>""",
+                f"""        <field name="style">""",
+                f"""            <![CDATA[""",
+                f"""{code}""",
+                f"""            ]]>""",
+                f"""        </field>""",
+                f"""    </record>\n\n""",
+            ]
+            return '\n'.join(content)
         else:
             return ''
 
