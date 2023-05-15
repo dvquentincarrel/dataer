@@ -289,7 +289,7 @@ def template(filename=DEFAULT_JSON_NAME):
     file_ = open('.gitignore', 'a')
     file_.write(".gitignore\n")
     file_.write("data*.xml\n")
-    file_.write("*.xtml")
+    file_.write("*.xtml\n")
     file_.write("tags")
     file_.close()
     if os.path.exists(filename):
