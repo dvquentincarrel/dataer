@@ -16,4 +16,5 @@ else
 fi
 
 ln -si "$PWD/dataer" "$HOME/.local/bin/dataer"
+ln -si "$PWD/odoo_db" "$HOME/.local/bin/odoo_db"
 cp -i ./dataer.ini ~/.dataer.ini
