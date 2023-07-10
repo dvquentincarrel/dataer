@@ -125,7 +125,7 @@ class Builder:
         if("external_style" in data):
             self.styles += data['external_style']
         if('onchange' in data):
-            self.onchanges = [onchange['name'] for onchange in data['onchange']]
+            self.onchanges = [onchange['id'] if 'id' in onchange else onchange['name'] for onchange in data['onchange']]
         if("external_oc" in data):
             self.onchanges += data['external_oc']
         global RAW
