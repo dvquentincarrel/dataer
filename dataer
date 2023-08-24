@@ -42,6 +42,7 @@ see '\x1b[1mdataer -h\x1b[m' for more informations"""
 
 help="""\
 \x1b[1mUsage\x1b[m:
+\t\x1b[33mdataer template\x1b[m
 \t\x1b[33mdataer unravel\x1b[m \x1b[1;4mSOURCE\x1b[m
 \t\x1b[33mdataer build\x1b[m \x1b[1;4mTARGET\x1b[m
 \t\x1b[33mdataer inject\x1b[m \x1b[1;4m[DB_NAME]\x1b[m
