@@ -249,7 +249,7 @@ class Builder:
         if('menu' in self.data):
             file_.write(self._build_menu(self.data['menu']))
         if(not 'fragment' in self.data):
-            file_.write(u"</data>\n</openerp>")
+            file_.write(u"</data>\n</openerp>\n")
         file_.close()
 
 def build_elems(files):
