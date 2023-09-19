@@ -361,6 +361,17 @@ def unravel(filename: str) -> None:
     # Update Makefile
     name_only = os.path.basename(os.path.splitext(filename)[0])
     subprocess.run(['sed','-i', f"s/filename = data/filename = {name_only}/", 'Makefile'])
+
+    # Update symlink
+    link_target = os.path.dirname(filename)
+    ans = input(f"Use {link_target} as 'location' ? (y/any): ")
+    if(ans == "y"):
+        try:
+            os.remove('location')
+        except:
+            pass
+        os.symlink(os.path.expanduser(link_target), 'location')
+
     # Parses XML
     tree: ET.ElementTree = ET.parse(filename)
     root: ET.Element = tree.getroot().findall('./data')[0]
