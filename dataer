@@ -5,6 +5,7 @@
 for webscanner scenarios """
 import sys
 import os
+import subprocess
 import json
 import pdb
 import re
@@ -351,88 +352,92 @@ def unescape(input: str) -> str:
     unescaped = unescaped.replace('&amp;', '&')
     return unescaped
 
+
 def unravel(filename: str) -> None:
     """ Parses through an existing data file, and splits it into its components """
     if(not os.path.exists(filename)):
         print(f"ERROR: File {filename} does not exist")
-    else:
-        # Parses XML
-        tree: ET.ElementTree = ET.parse(filename)
-        root: ET.Element = tree.getroot().findall('./data')[0]
-        records: list[ET.Element] = root.findall('./record')
-        entries = {VIEW_KEY:[], OCS_KEY:[], CSS_KEY:[], MENU_KEY:[]}
-        for record in records:
-            record_model = record.attrib.get('model')
-            record_id = record.attrib.get('id')
-            record_name: str = ''
-            code = False
-            content_name: list
-            file_ext: str
-            id = None
+        return False
+    # Update Makefile
+    name_only = os.path.basename(os.path.splitext(filename)[0])
+    subprocess.run(['sed','-i', f"s/filename = data/filename = {name_only}/", 'Makefile'])
+    # Parses XML
+    tree: ET.ElementTree = ET.parse(filename)
+    root: ET.Element = tree.getroot().findall('./data')[0]
+    records: list[ET.Element] = root.findall('./record')
+    entries = {VIEW_KEY:[], OCS_KEY:[], CSS_KEY:[], MENU_KEY:[]}
+    for record in records:
+        record_model = record.attrib.get('model')
+        record_id = record.attrib.get('id')
+        record_name: str = ''
+        code = False
+        content_name: list
+        file_ext: str
+        id = None
+        is_view = False
+        # Retrieves code tag name based on record type
+        if(record_model == 'manual.onchange'):
+            content_name = ["code", "raw_code"]
+            file_ext = ".py"
+            record_type = OCS_KEY
             is_view = False
-            # Retrieves code tag name based on record type
-            if(record_model == 'manual.onchange'):
-                content_name = ["code", "raw_code"]
-                file_ext = ".py"
-                record_type = OCS_KEY
-                is_view = False
-            elif(record_model == 'ir.ui.view.ionic'):
-                content_name = ["architecture", 'raw_architecture']
-                file_ext = ".xml"
-                record_type = VIEW_KEY
-                is_view = True
-            elif(record_model == 'ir.ui.css.ionic'):
-                content_name = ["style"]
-                file_ext = ".css"
-                record_type = CSS_KEY
-                is_view = False
-            elif(record_model == 'ir.ui.menu.ionic'):
-                record_type = MENU_KEY
+        elif(record_model == 'ir.ui.view.ionic'):
+            content_name = ["architecture", 'raw_architecture']
+            file_ext = ".xml"
+            record_type = VIEW_KEY
+            is_view = True
+        elif(record_model == 'ir.ui.css.ionic'):
+            content_name = ["style"]
+            file_ext = ".css"
+            record_type = CSS_KEY
+            is_view = False
+        elif(record_model == 'ir.ui.menu.ionic'):
+            record_type = MENU_KEY
+        else:
+            # Doesn't handle something other than views, onchanges, and css sheets
+            continue
+
+        # Gets elem name, code after substitutions
+        for field in [field for field in record if type(field) != ET._Comment]:
+            if field.attrib["name"] == "name":
+                record_name = field.text
+            elif field.attrib["name"] in content_name:
+                code = ET.tostring(field[0], encoding="unicode", method="xml") if is_view else unescape(field.text)
+                code = code.strip()
+            elif field.attrib['name'] == "model_id":
+                model = get_model(field)
+            elif field.attrib['name'] == "identifier":
+                id = field.text
+            # Menu only
+            elif field.attrib['name'] == 'icon':
+                icon = field.text
+            elif field.attrib['name'] == 'initial_onchange_id':
+                init_oc = field.attrib['ref']
+            elif field.attrib['name'] == 'view_id':
+                main_view = field.attrib['ref']
+            elif field.attrib['name'] == 'sequence':
+                seq = field.attrib['eval']
+
+        # Doesn't produce empty files
+        if record_name and code:
+            model = model if 'model' in locals() else record_model
+            add_record(entries, record_type, record_name, file_ext, model, record_id)
+            if not (os.path.exists(record_id + file_ext)):
+                file_ = open(record_id + file_ext,'w')
+                file_.write(code)
+                file_.close()
             else:
-                # Doesn't handle something other than views, onchanges, and css sheets
-                continue
+                print(f"'{record_id + file_ext}' already exists")
+        elif record_type == MENU_KEY:
+            init_oc = init_oc if 'init_oc' in locals() else ''
+            row = { 
+                   'id' : record_id, 'name' : record_name, 'icon': icon,
+                   'init_oc': init_oc, 'main_view': main_view,
+                    'seq': seq
+            }
+            entries[MENU_KEY].append(row)
 
-            # Gets elem name, code after substitutions
-            for field in [field for field in record if type(field) != ET._Comment]:
-                if field.attrib["name"] == "name":
-                    record_name = field.text
-                elif field.attrib["name"] in content_name:
-                    code = ET.tostring(field[0], encoding="unicode", method="xml") if is_view else unescape(field.text)
-                    code = code.strip()
-                elif field.attrib['name'] == "model_id":
-                    model = get_model(field)
-                elif field.attrib['name'] == "identifier":
-                    id = field.text
-                # Menu only
-                elif field.attrib['name'] == 'icon':
-                    icon = field.text
-                elif field.attrib['name'] == 'initial_onchange_id':
-                    init_oc = field.attrib['ref']
-                elif field.attrib['name'] == 'view_id':
-                    main_view = field.attrib['ref']
-                elif field.attrib['name'] == 'sequence':
-                    seq = field.attrib['eval']
-
-            # Doesn't produce empty files
-            if record_name and code:
-                model = model if 'model' in locals() else record_model
-                add_record(entries, record_type, record_name, file_ext, model, record_id)
-                if not (os.path.exists(record_id + file_ext)):
-                    file_ = open(record_id + file_ext,'w')
-                    file_.write(code)
-                    file_.close()
-                else:
-                    print(f"'{record_id + file_ext}' already exists")
-            elif record_type == MENU_KEY:
-                init_oc = init_oc if 'init_oc' in locals() else ''
-                row = { 
-                       'id' : record_id, 'name' : record_name, 'icon': icon,
-                       'init_oc': init_oc, 'main_view': main_view,
-                        'seq': seq
-                }
-                entries[MENU_KEY].append(row)
-
-        get_skel(entries) 
+    get_skel(entries) 
 
 def add_record(container, elem_type, name, ext, model, id):
     """Adds a record (view/oc/css) to the container"""
