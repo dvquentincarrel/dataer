@@ -264,11 +264,22 @@ def build_elems(files):
                 dic[ext].append(name_base)
     return dic
 
-def sanitize(content):
-    """ TODO """
-    content = content.replace('&', '&amp;')
-    content = content.replace('<', '&lt;')
-    content = content.replace('>', '&gt;')
+def sanitize(content: str, reverse=False) -> str:
+    """Sanitizes input by replacing xml-incompatible entities.
+    Can also do the opposite
+
+    :param content: String to [un]sanitize
+    :param reverse: Whether to sanitize or un-sanitize output
+    :return: The [un]sanitize content
+    """
+    sanity_table = [
+        ['&', '&amp;'],
+        ['<', '&lt;'],
+        ['>', '&gt;'],
+    ]
+    reverse and [e.reverse() for e in sanity_table]
+    for correspondance in sanity_table:
+        content = content.replace(*correspondance)
     return content
 
 def process_file(filename, ext):
@@ -344,14 +355,6 @@ def template(filename=DEFAULT_JSON_NAME):
     file_.close()
     return 0
 
-def unescape(input: str) -> str:
-    """ Takes string with xml escaped characters, returns unescaped version"""
-    unescaped = input.replace('&lt;', '<')
-    unescaped = unescaped.replace('&gt;', '>')
-    unescaped = unescaped.replace('&amp;', '&')
-    return unescaped
-
-
 def unravel(filename: str) -> None:
     """ Parses through an existing data file, and splits it into its components """
     if(not os.path.exists(filename)):
@@ -412,7 +415,7 @@ def unravel(filename: str) -> None:
             if field.attrib["name"] == "name":
                 record_name = field.text
             elif field.attrib["name"] in content_name:
-                code = ET.tostring(field[0], encoding="unicode", method="xml") if is_view else unescape(field.text)
+                code = ET.tostring(field[0], encoding="unicode", method="xml") if is_view else sanitize(field.text, True)
                 code = code.strip()
             elif field.attrib['name'] == "model_id":
                 model = get_model(field)
@@ -624,11 +627,4 @@ elif (mode == "inject"):
 else:
     print("command '%s' not recognized (autofill/build/template/unravel/update/inject)"%(mode))
 
-
-def unescape(input: str) -> str:
-    """ Takes string with xml escaped characters, returns unescaped version"""
-    unescaped = input.replace('&lt;', '<')
-    unescaped = unescaped.replace('&gt;', '>')
-    unescaped = unescaped.replace('&amp;', '&')
-    return unescaped
 
