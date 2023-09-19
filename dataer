@@ -23,11 +23,6 @@ from configparser import ConfigParser
 # - update: changes only selected records in the data file
 # - inject: injects code of scenario into existing db entries
 
-# pylint: disable=superfluous-parens
-# pylint: disable=too-few-public-methods
-# pylint: disable=invalid-name
-# pylint: disable=no-else-return
-
 # TODO: automatically call linters
 # TODO: support of both identifier and name for views
 
