@@ -14,6 +14,7 @@ import psycopg2 as pcg
 import lxml.etree as ET
 from io import open
 from configparser import ConfigParser
+import messages
 # Params: data_filename menu_name files
 # Commands:
 # - template: builds empty, scaffold json file
@@ -26,52 +27,28 @@ from configparser import ConfigParser
 # TODO: automatically call linters
 # TODO: support of both identifier and name for views
 
-preface="""\
-Dataer is a utility to allow working on individual components of a web scanner scenario.
-Enables bypassing module update when pushing modifications,
-automatic building of data file, and exploding existing data file into its components."""
-
-hints="""\
-\x1b[1mUsage:\x1b[m dataer <command> [<FILE>]
-see '\x1b[1mdataer -h\x1b[m' for more informations"""
-
-help="""\
-\x1b[1mUsage\x1b[m:
-\t\x1b[33mdataer template\x1b[m
-\t\x1b[33mdataer unravel\x1b[m \x1b[1;4mSOURCE\x1b[m
-\t\x1b[33mdataer build\x1b[m \x1b[1;4mTARGET\x1b[m
-\t\x1b[33mdataer inject\x1b[m \x1b[1;4m[DB_NAME]\x1b[m
-\t\x1b[33mdataer autofill\x1b[0;35m*\x1b[m
-\t\x1b[33mdataer update\x1b[m \x1b[1;4mTARGET\x1b[0;35m*\x1b[m
-\x1b[35m*NIY\x1b[m"""
-
 COMMANDS={'unravel', 'build', 'inject', 'autofill', 'update', 'template'}
 IMPLEMENTED={'unravel', 'build', 'inject', 'template'}
 UNIMPLEMENTED=COMMANDS-IMPLEMENTED
 
-# If arg[1] is -h : display help
-# If arg[1] not in ... : display usage
-# If arg[1] doesn't exist: error not enough arg, display usage
-try:
-    command = sys.argv[1]
-    if(command in ['-h', '--help']):
-        print(preface, file=sys.stderr)
-        print(help, file=sys.stderr)
-        exit(0)
-    elif(command not in COMMANDS):
-        print(f"\x1b[31mERROR\x1b[m: '{command}' is not a valid command!", file=sys.stderr)
-        print(hints, file=sys.stderr)
-        exit(1)
-except IndexError:
-    print("\x1b[31mERROR\x1b[m: Not enough args!", file=sys.stderr)
-    print(hints, file=sys.stderr)
+# Check args
+if(len(sys.argv) == 1):
+    messages.print_err("Not enough args!")
+    messages.print_default()
     exit(1)
-
+command = sys.argv[1]
+if(command in ['-h', '--help']):
+    messages.print_help()
+    exit(0)
+elif(command not in COMMANDS):
+    messages.print_err(f"'{command}' is not a valid command!")
+    messages.print_default()
+    exit(1)
 
 # Parse config file
 config = ConfigParser()
 if(not config.read(os.environ ['HOME']+'/.dataer.ini')):
-    print("Could not find config file (should be ~/.dataer.ini)")
+    messages.print_err("Could not find config file (should be ~/.dataer.ini)")
     exit(1)
 for key, val in config['DATAER'].items():
     locals()[key.upper()] = val
@@ -85,10 +62,6 @@ OCS_KEY = "onchange"
 CSS_KEY = "style"
 SKEL_NAME = "skeleton.json"
 MENU_KEY = "menu"
-
-if len(sys.argv) < 2:
-    print("Not enough args\nDATA_FILENAME MENU_NAME MODULE_NAME FILES...")
-    sys.exit()
 
 def make_refs(names, module_name=""):
     """Joins "names" with proper syntax"""
