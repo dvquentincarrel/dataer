@@ -13,7 +13,6 @@ import psycopg2 as pcg
 #import xml.etree.ElementTree as ET
 import lxml.etree as ET
 from io import open
-from unidecode import unidecode
 from configparser import ConfigParser
 # Params: data_filename menu_name files
 # Commands:
@@ -226,7 +225,7 @@ class Builder:
         <field name="css_ids" eval="[(6, 0, [%s])]"/>
         <field name="onchange_ids" eval="[(6, 0, [%s])]" />
     </record>\n\
-"""%(unidecode(data['id']), data['name'], data['icon'], data['seq'],
+"""%(data['id'], data['name'], data['icon'], data['seq'],
          data['main_view'], data['init_oc'], views, styles, onchanges)
             return content
         else:
