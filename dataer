@@ -63,13 +63,13 @@ CSS_KEY = "style"
 SKEL_NAME = "skeleton.json"
 MENU_KEY = "menu"
 
-def make_refs(self, xml_ids: list) -> str:
+def make_refs(xml_ids: list) -> str:
     """Structures a list of xml_ids into calls of ref() for eval
 
     :param xml_ids: list of xml ids to call ref() on
     :return: string of all the formatted refs, ready to be put into a data file
     """
-    xml_ids = list(filter(None, names))
+    xml_ids = list(filter(None, xml_ids))
     if(not xml_ids):
         return ''
     refs = []
