@@ -63,18 +63,20 @@ CSS_KEY = "style"
 SKEL_NAME = "skeleton.json"
 MENU_KEY = "menu"
 
-def make_refs(names, module_name=""):
-    """Joins "names" with proper syntax"""
+def make_refs(self, xml_ids: list) -> str:
+    """Structures a list of xml_ids into calls of ref() for eval
+
+    :param xml_ids: list of xml ids to call ref() on
+    :return: string of all the formatted refs, ready to be put into a data file
+    """
+    xml_ids = list(filter(None, names))
+    if(not xml_ids):
+        return ''
     refs = []
-    if(not names):
-        return u''
-    for name in names:
-        if name:
-            if module_name:
-                refs.append("ref('%s.%s')"%(module_name, name))
-            else:
-                refs.append("ref('%s')"%(name))
-    return ',\n            '.join(refs)
+    for name in xml_ids:
+        refs.append(f"ref('{name}')")
+    sep = ',\n            '
+    return sep.join(refs)
 
 class Builder:
     """ Handles the building of the xml data file based on what's been parsed in the JSON """
