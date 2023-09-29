@@ -1,0 +1,12 @@
+#!/bin/bash
+infos="Removes scenario prefix from skeleton and filenames
+Usage: dataer_unbloat PREFIX"
+if [[ -z "$1" ]] || [[ $1 == "-h" ]]; then
+    echo "$infos"
+    exit 1
+fi
+sed -i "s/\(file.*\)$1_/\1/" skeleton.json
+
+for file in "$1"_*; do
+    mv "$file" $(sed "s/$1_//" <<< "$file")
+done
