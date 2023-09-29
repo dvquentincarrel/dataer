@@ -428,6 +428,8 @@ def add_record(container, elem_type, name, ext, model, id):
            'id': id, 'model':model}
     if(elem_type == VIEW_KEY):
         row['file'] = id + ext
+    elif(elem_type == OCS_KEY and name == id):
+        row.pop('id')
     elif(elem_type == CSS_KEY):
         row.pop('model')
         row.pop('id')
