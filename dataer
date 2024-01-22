@@ -63,6 +63,15 @@ CSS_KEY = "style"
 SKEL_NAME = "skeleton.json"
 MENU_KEY = "menu"
 
+
+def clean_skeleton(file: TextIO) -> str:
+    """Removes comments from skeleton file
+
+    :return: skeleton content after cleanup
+    """
+    return re.sub('//.*', '', file.read())
+
+
 def make_refs(xml_ids: list) -> str:
     """Structures a list of xml_ids into calls of ref() for eval
 
@@ -443,7 +452,7 @@ def get_skel(container, skel_name = SKEL_NAME):
         print("Skeleton not found, couldn't update it")
         return None
     with open(skel_name, 'r') as file:
-        skeleton = json.load(file)
+        skeleton = json.loads(clean_skeleton(file))
     skeleton[VIEW_KEY] = container[VIEW_KEY]
     skeleton[OCS_KEY] = container[OCS_KEY]
     if container[CSS_KEY]:
@@ -560,7 +569,7 @@ elif (mode == "build"):
     except:
         print("No name given. Default name is %s"%(DEFAULT_DATA_NAME))
     json_file = open(DEFAULT_JSON_NAME, 'r', encoding='utf-8')
-    json_data = json.load(json_file)
+    json_data = json.loads(clean_skeleton(json_file))
     json_file.close()
     builder_o = Builder(DEFAULT_DATA_NAME, json_data)
     builder_o.build()
@@ -581,6 +590,9 @@ elif (mode == "update"):
     print("to allow working on xml files which haven't been unraveled")
 elif (mode == "inject"):
     print("WIP")
+    json_file = open(DEFAULT_JSON_NAME, 'r', encoding='utf-8')
+    json_data = json.loads(clean_skeleton(json_file))
+    json_file.close()
     try:
         DB_NAME = sys.argv[2]
     except:
