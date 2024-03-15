@@ -416,7 +416,7 @@ def unravel(filename: str) -> None:
             add_record(entries, record_type, record_name, file_ext, model, record_id)
             if not (os.path.exists(record_id + file_ext)):
                 file_ = open(record_id + file_ext,'w')
-                file_.write(code)
+                file_.write(code+'\n')
                 file_.close()
             else:
                 print(f"'{record_id + file_ext}' already exists")
