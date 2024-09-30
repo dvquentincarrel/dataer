@@ -14,6 +14,7 @@ import psycopg2 as pcg
 import lxml.etree as ET
 from io import open
 from configparser import ConfigParser
+from typing import TextIO
 import messages
 # Params: data_filename menu_name files
 # Commands:
@@ -52,9 +53,10 @@ if(not config.read(os.environ ['HOME']+'/.dataer.ini')):
     exit(1)
 for key, val in config['DATAER'].items():
     locals()[key.upper()] = val
-RAW = bool()
+# Can be 0 (not raw), 1 (raw), or 2 (force raw)
+RAW = int()
 SECURE = bool()
-DEFAULT_RAWNESS = False
+DEFAULT_RAWNESS = 1
 DEFAULT_SEC = True
 
 VIEW_KEY = "view"
@@ -85,7 +87,7 @@ def make_refs(xml_ids: list) -> str:
     for name in xml_ids:
         refs.append(f"ref('{name}')")
     sep = ',\n            '
-    return sep.join(refs)
+    return f"\n{' '*12}{sep.join(refs)}\n{' '*8}"
 
 class Builder:
     """ Handles the building of the xml data file based on what's been parsed in the JSON """
@@ -96,6 +98,7 @@ class Builder:
         self.views = []
         self.styles = []
         self.onchanges = []
+        self.extra = []
         if('view' in data):
             self.views = [view.get('id') or view['name'] for view in data['view']]
         if("external_views" in data):
@@ -108,6 +111,8 @@ class Builder:
             self.onchanges = [onchange['id'] if 'id' in onchange else onchange['name'] for onchange in data['onchange']]
         if("external_oc" in data):
             self.onchanges += data['external_oc']
+        if("extra" in data):
+            self.extra += list(filter(None, data['extra']))
         global RAW
         RAW = data['raw'] if 'raw' in data else DEFAULT_RAWNESS
         global SECURE
@@ -117,20 +122,20 @@ class Builder:
         """ self-explanatory """
         # id, name, model_name, code
         if(data['file']):
-            raw_type = "raw_"*RAW+"code"
+            raw_type = "raw_"*bool(RAW)+"code"
             data['id'] = data['id'] if 'id' in data else data['name']
             code = process_file(data['file'], 'py')
             code = code.strip()
-            content = [
+            content = list(filter(None, [
                 f"""    <record id="{data['id']}" model="manual.onchange">""",
                 f"""        <field name="name">{data['name']}</field>""",
                 f"""        <field name="model_id" search="[('model', '=', '{data['model']}')]"/>""",
-                f"""        <field name="is_translatable_code" eval="{not RAW}"/>""",
-                f"""        <field name="{raw_type}">""",
+                f"""        <field name="is_translatable_code" eval="{not RAW}"/>""" if RAW == 2 else None,
+                f"""        <field name="{raw_type}"><![CDATA[""",
                 f"""{code}""",
-                f"""        </field>""",
+                f"""        ]]></field>""",
                 f"""    </record>\n\n""",
-            ]
+            ]))
             if(not SECURE):
                 content.insert(2, """        <field name="is_security_check" eval="False"/>""")
             return '\n'.join(content)
@@ -148,11 +153,9 @@ class Builder:
                 f"""    <record id="{data['name']}" model="ir.ui.css.ionic">""",
                 f"""        <field name="name">{data['name']}</field>""",
                 f"""        <field name="page_ids" eval="[(6, 0, [{refs}])]"/>""",
-                f"""        <field name="style">""",
-                f"""            <![CDATA[""",
+                f"""        <field name="style"><![CDATA[""",
                 f"""{code}""",
-                f"""            ]]>""",
-                f"""        </field>""",
+                f"""        ]]></field>""",
                 f"""    </record>\n\n""",
             ]
             return '\n'.join(content)
@@ -163,21 +166,24 @@ class Builder:
         """ self-explanatory """
         # id, name, model_name, code
         if(data['file']):
-            raw_type = "raw_"*RAW + "architecture"
+            raw_type = "raw_"*bool(RAW) + "architecture"
             code = process_file(data['file'], 'xml')
             code = code.strip()
             data['id'] = data['id'] if 'id' in data else data['name']
-            content = [
+            content = list(filter(None, [
                 f"""    <record id="{data['id']}" model="ir.ui.view.ionic">""",
                 f"""        <field name="identifier">{data['id']}</field>""",
                 f"""        <field name="name">{data['name']}</field>""",
                 f"""        <field name="model_id" search="[('model', '=', '{data['model']}')]"/>""",
-                f"""        <field name="is_translatable_architecture" eval="{not RAW}"/>""",
+                f"""        <field name="is_translatable_architecture" eval="{not RAW}"/>""" if RAW == 2 else None,
+                f"""        <field name="inherited_view_id" eval="ref('{data['inherit']}')"/>""" if data.get('inherit') else None,
                 f"""        <field name="{raw_type}" type="xml">""",
                 f"""{code}""",
                 f"""        </field>""",
                 f"""    </record>\n\n""",
-            ]
+            ]))
+            if(not SECURE):
+                content.insert(2, """        <field name="is_security_check" eval="False"/>""")
             return '\n'.join(content)
         else:
             return ''
@@ -185,6 +191,8 @@ class Builder:
 
     def _build_menu(self, data):
         """ self-explanatory """
+        if not data:
+            return ''
         # id, name, icon, main_view, users, sequence, views, styles, ocs
         views = make_refs(self.views)
         styles = make_refs(self.styles)
@@ -200,15 +208,15 @@ class Builder:
         <field name="sequence" eval="%s"/>
         <field name="view_id" ref="%s"/>
         <field name="initial_onchange_id" ref="%s"/>
-        <field name="view_ids" eval="[(6, 0, [%s])]" />
+        <field name="view_ids" eval="[(6, 0, [%s])]"/>
         <field name="css_ids" eval="[(6, 0, [%s])]"/>
-        <field name="onchange_ids" eval="[(6, 0, [%s])]" />
+        <field name="onchange_ids" eval="[(6, 0, [%s])]"/>
     </record>\n\
 """%(data['id'], data['name'], data['icon'], data['seq'],
          data['main_view'], data['init_oc'], views, styles, onchanges)
             return content
         else:
-            return u''
+            return ''
 
     def build(self):
         """ Builds the whole data xml file """
@@ -227,6 +235,11 @@ class Builder:
                 file_.write(self._build_style(style))
         if('menu' in self.data):
             file_.write(self._build_menu(self.data['menu']))
+        if('extra' in self.data):
+            for extra_file in self.extra:
+                # TODO: check that file exists
+                with open(extra_file, 'r') as extra_stream:
+                    file_.write(extra_stream.read())
         if(not 'fragment' in self.data):
             file_.write(u"</data>\n</openerp>\n")
         file_.close()
@@ -264,14 +277,14 @@ def sanitize(content: str, reverse=False) -> str:
 def process_file(filename, ext):
     """ TODO """
     if filename:
-        f_handler = open("%s"%(filename), 'r', encoding='utf-8')
-        lines = f_handler.readlines()
-        content = ''.join(lines)
+        with open(filename, 'r') as f_handler:
+            content = f_handler.read()
         if ext != "xml":
-            content = sanitize(content)
+            pass # No sanitation required, handled by cdata
+            #content = sanitize(content)
         return content
     else:
-        return u''
+        return ''
 
 def template(filename=DEFAULT_JSON_NAME):
     """ Makes the template json file to use as a base for building, later """
@@ -281,7 +294,7 @@ def template(filename=DEFAULT_JSON_NAME):
     file_.write(".gitignore\n")
     file_.write("data*.xml\n")
     file_.write("*.xtml\n")
-    file_.write("tags")
+    file_.write("tags\n")
     file_.close()
     if os.path.exists(filename):
         ans = input("file %s already exists. overwrite ? y/any\n"%(filename))
@@ -290,7 +303,7 @@ def template(filename=DEFAULT_JSON_NAME):
     file_ = open(filename, "w", encoding='utf-8')
     file_.write(u"""\
 {
-  "raw": true,
+  "raw": 1,
   "style":[
     {
       "file":"",
@@ -329,7 +342,8 @@ def template(filename=DEFAULT_JSON_NAME):
     "main_view":"",
     "init_oc":"",
     "seq":"0"
-  }
+  },
+  "extra":[""]
 }""")
     file_.close()
     return 0
@@ -348,10 +362,10 @@ def unravel(filename: str) -> None:
     ans = input(f"Use {link_target} as 'location' ? (y/any): ")
     if(ans == "y"):
         try:
-            os.remove('location')
+            os.remove(DEFAULT_TARGET_LOCATION)
         except:
             pass
-        os.symlink(os.path.expanduser(link_target), 'location')
+        os.symlink(os.path.expanduser(link_target), DEFAULT_TARGET_LOCATION)
 
     # Parses XML
     tree: ET.ElementTree = ET.parse(filename)
@@ -394,7 +408,7 @@ def unravel(filename: str) -> None:
             if field.attrib["name"] == "name":
                 record_name = field.text
             elif field.attrib["name"] in content_name:
-                code = ET.tostring(field[0], encoding="unicode", method="xml") if is_view else sanitize(field.text, True)
+                code = ET.tostring(field[0], encoding="unicode", method="xml") if is_view else field.text # Everything but views 
                 code = code.strip()
             elif field.attrib['name'] == "model_id":
                 model = get_model(field)
@@ -457,7 +471,7 @@ def get_skel(container, skel_name = SKEL_NAME):
     skeleton[OCS_KEY] = container[OCS_KEY]
     if container[CSS_KEY]:
         skeleton[CSS_KEY] = container[CSS_KEY]
-    skeleton[MENU_KEY] = container[MENU_KEY][0]
+    skeleton[MENU_KEY] = container[MENU_KEY][0] if container[MENU_KEY] else ''
     with open(skel_name, 'w') as file:
         json.dump(skeleton, file, indent=2, ensure_ascii=False)
 
@@ -476,18 +490,24 @@ def build_makefile(filename=DEFAULT_DATA_NAME, ext=DEFAULT_DATA_EXT, target=DEFA
         if ans != "y":
             return 1
     file_ = open("Makefile", 'w', encoding='utf-8')
-    file_.write(u"""\
-filename = %s
-ext = %s
-
-always:
-\tdataer build .$(filename).$(ext)
-\tcp -f ./.$(filename).$(ext) %s/$(filename).xml"""%(filename, ext, target))
+    file_.write('\n'.join([
+        f"filename = {filename}\n"
+        f"ext = {ext}\n"
+        f"\n"
+        f"all: build inject\n"
+        f"\n"
+        f"inject:\n"
+        f"	dataer inject\n"
+        f"\n"
+        f"build:\n"
+        f"	dataer build .$(filename).$(ext)\n"
+        f"	cp -f ./.$(filename).$(ext) {target}/$(filename).xml\n"
+    ]))
     file_.close() 
 
 def build_loc_link() -> None:
-    if(not os.path.exists('location')):
-        os.symlink(os.path.expanduser('~/git/openprod/openprod-addons/web_scanner/data/'), 'location')
+    if(not os.path.exists(DEFAULT_TARGET_LOCATION)):
+        os.symlink(os.path.expanduser('~/git/openprod/openprod-addons/web_scanner/data/'), DEFAULT_TARGET_LOCATION)
 
 
 class Injecter:
@@ -501,7 +521,7 @@ class Injecter:
 
     def psql_sanitize(self, filename):
         """ TODO """
-        if filename:
+        if filename and os.path.exists(filename):
             f_handler = open(filename, 'r', encoding='utf-8')
             content = f_handler.read().replace("'", "''")
             return content
@@ -514,9 +534,9 @@ class Injecter:
         """
         # TODO: feedback when entry not found
         global DB_NAME, USER, PW
-        connection = pcg.connect(f"dbname={DB_NAME} user={USER} password={PW}")
+        connection = pcg.connect(f"dbname={DB_NAME} user={USER} password={PW} port=5433")
         cursor = connection.cursor()
-        rawness = "raw_" * RAW
+        rawness = "raw_" * bool(RAW)
         if(entry_type == "view"):
             stmt = f"""
             UPDATE ir_ui_view_ionic
@@ -546,19 +566,22 @@ class Injecter:
         connection.close()
 
     def inject_scenario(self, feedback=True):
-        for view in self.data['view']:
-            code = self.psql_sanitize(view['file'])
-            view['id'] = view['id'] if 'id' in view else view['name']
-            self.inject_entry(view['id'], 'view', code)
-            feedback and print(f'Injected {view["file"]} into {view["id"]}')
-        for onchange in self.data['onchange']:
-            code = self.psql_sanitize(onchange['file'])
-            self.inject_entry(onchange['name'], 'onchange', code)
-            feedback and print(f'Injected {onchange["file"]} into {onchange["name"]}')
-        for sheet in self.data['style']:
-            code = self.psql_sanitize(sheet['file'])
-            self.inject_entry(sheet['name'], 'css', code)
-            feedback and print(f'Injected {sheet["file"]} into {sheet["name"]}')
+        if 'view' in self.data:
+            for view in self.data['view']:
+                code = self.psql_sanitize(view['file'])
+                view['id'] = view['id'] if 'id' in view else view['name']
+                self.inject_entry(view['id'], 'view', code)
+                feedback and print(f'Injected {view["file"]} into {view["id"]}')
+        if 'onchange' in self.data:
+            for onchange in self.data['onchange']:
+                code = self.psql_sanitize(onchange['file'])
+                self.inject_entry(onchange['name'], 'onchange', code)
+                feedback and print(f'Injected {onchange["file"]} into {onchange["name"]}')
+        if 'style' in self.data:
+            for sheet in self.data['style']:
+                code = self.psql_sanitize(sheet['file'])
+                self.inject_entry(sheet['name'], 'css', code)
+                feedback and print(f'Injected {sheet["file"]} into {sheet["name"]}')
 
 mode = sys.argv[1]
 if (mode == "template"):
@@ -589,6 +612,7 @@ elif (mode == "update"):
             but only updates the fields mentionned in the json")
     print("to allow working on xml files which haven't been unraveled")
 elif (mode == "inject"):
+    # TODO: search for all skeletons under the current dir (in case of fragmented scenarios)
     print("WIP")
     json_file = open(DEFAULT_JSON_NAME, 'r', encoding='utf-8')
     json_data = json.loads(clean_skeleton(json_file))
@@ -596,15 +620,11 @@ elif (mode == "inject"):
     try:
         DB_NAME = sys.argv[2]
     except:
-        if(os.path.exists(DEFAULT_DBNAME_PATH)):
-            with open(DEFAULT_DBNAME_PATH) as name_file:
-                DB_NAME = name_file.read().replace('\n','')
+        if('database' in json_data):
+            DB_NAME = json_data['database']
             print(f"Db name found: '{DB_NAME}'")
         else:
             print(f"no db name given. '{DB_NAME}' used.")
-    json_file = open(DEFAULT_JSON_NAME, 'r', encoding='utf-8')
-    json_data = json.load(json_file)
-    json_file.close()
     injecter_o = Injecter(json_data)
     injecter_o.inject_scenario()
 # TODO: delete, should be useless now

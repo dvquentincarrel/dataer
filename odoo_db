@@ -1,2 +1,0 @@
-#!/bin/bash
-ps aux | grep -P "postgres:.*openprod" | head -n 1 | sed 's/ \+/ /g' | cut -d' ' -f 14

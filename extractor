@@ -1,0 +1,21 @@
+#!/bin/python3
+import psycopg2 as pcg
+import sys
+
+dbname = sys.argv[1]
+menu_id= sys.argv[2]
+
+
+connection = pcg.connect(f"dbname={dbname} user=openprod password=openprod")
+cursor = connection.cursor()
+
+cursor.execute(f"SELECT manual_onchange_id FROM maunal_onchange_ir_ui_menu_ionic_rel WHERE ir_ui_menu_ionic_id={menu_id}")
+oc_ids = {row[0] for row in cursor.fetchall()}
+
+cursor.execute(f"SELECT ir_ui_view_ionic_id FROM view_ionic_menu_ionic_rel WHERE ir_ui_menu_ionic_id={menu_id}")
+view_ids = {row[0] for row in cursor.fetchall()}
+cursor.execute(f"SELECT view_id FROM ir_ui_menu_ionic WHERE id={menu_id}")
+view_ids.add(cursor.fetchone()[0])
+
+import pdb; pdb.set_trace()
+cursor.execute("SELECT raw_code FROM manual_onchange WHERE id in %s", oc_ids)
